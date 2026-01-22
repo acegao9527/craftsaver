@@ -7,7 +7,6 @@ from src.handlers.base import BaseHandler
 from src.services.binding_service import BindingService
 from src.services.formatter import format_unified_message_as_craft_blocks
 from src.services.craft import save_blocks_to_craft
-from src.utils.reply_sender import send_reply
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +23,6 @@ class ForwardHandler(BaseHandler):
         """
         if msg.source != "wecom":
             return False
-
-        # 排除绑定相关命令（由 BindHandler 处理）
-        if msg.msg_type == "text":
-            content = msg.content.strip()
-            if content.startswith("绑定") or content.startswith("我的绑定"):
-                return False
 
         return True
 
@@ -77,8 +70,5 @@ class ForwardHandler(BaseHandler):
                 logger.info(f"[Forward] 转发成功: msgid={msg.msg_id}")
             else:
                 logger.error(f"[Forward] 转发失败: msgid={msg.msg_id}")
-                # 可以选择发送失败通知
-                await send_reply(msg, "⚠️ 转发到 Craft 失败，请稍后重试")
         except Exception as e:
             logger.error(f"[Forward] 转发异常: msgid={msg.msg_id}, error={e}")
-            await send_reply(msg, f"⚠️ 转发异常: {str(e)}")

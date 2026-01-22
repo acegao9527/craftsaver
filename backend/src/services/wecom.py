@@ -112,10 +112,30 @@ def _load_sdk_lib():
         logger.warning("[WeCom] SDK loading explicitly disabled by WECOM_DISABLE_SDK.")
         return None
 
+    # 2. 根据平台选择 SDK
+    import platform
+    system = platform.system()
+    machine = platform.machine()
+
+    logger.info(f"[WeCom] 当前系统: {system}, 架构: {machine}")
+
+    # 确定 SDK 路径
+    if system == "Darwin" and machine in ("arm64", "aarch64"):
+        # Mac ARM (M1/M2)
+        sdk_path = "backend/C_sdk_arm/libWeWorkFinanceSdk_C.so"
+    elif system == "Linux" and machine == "x86_64":
+        # Linux x86_64
+        sdk_path = "backend/C_sdk/libWeWorkFinanceSdk_C.so"
+    elif system == "Linux" and machine == "aarch64":
+        # Linux ARM64
+        sdk_path = "backend/C_sdk_arm/libWeWorkFinanceSdk_C.so"
+    else:
+        # 默认使用 Linux SDK
+        sdk_path = "backend/C_sdk/libWeWorkFinanceSdk_C.so"
+
     sdk_paths = [
+        sdk_path,
         "libWeWorkFinanceSdk.so",
-        "backend/C_sdk/libWeWorkFinanceSdk_C.so",
-        "C_sdk/libWeWorkFinanceSdk_C.so",
         "/usr/local/lib/libWeWorkFinanceSdk.so",
         "./libWeWorkFinanceSdk.so",
     ]
@@ -398,7 +418,7 @@ def _get_access_token() -> Optional[str]:
 
 def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = "", file_extension: str = "jpg", original_name: str = "") -> Optional[str]:
     """
-    从企业微信服务器下载媒体文件（使用 SDK），并自动上传到腾讯 COS
+    从企业微信服务器下载媒体文件（使用 SDK）
 
     Args:
         media_id: 媒体的 sdkfileid
@@ -409,9 +429,9 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
         original_name: 原始文件名 (可选)
 
     Returns:
-        COS 公网 URL 或 None (上传失败时返回本地路径作为备选)
+        本地文件路径或 None
     """
-    logger.info(f"[WeCom] download_image 被调用: media_id={media_id[:30] if media_id else 'None'}..., msg_id={msg_id}, ext={file_extension}, orig={original_name}")
+    logger.info(f"[WeCom] download_image: media_id={media_id[:30] if media_id else 'None'}..., msg_id={msg_id}")
 
     # 确保保存目录存在
     os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)
@@ -419,14 +439,13 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
     # 生成文件名
     timestamp = int(time.time() * 1000)
     prefix = "media"
-    
+
     # 构建基础文件名 (用于唯一性)
     base_name = f"{prefix}_{msg_id if msg_id else timestamp}_{media_id[:8]}"
-    
+
     if original_name:
         # 清理文件名中的非法字符
         safe_name = "".join([c for c in original_name if c.isalnum() or c in (' ', '.', '_', '-')]).strip()
-        # 避免文件名过长
         if len(safe_name) > 100:
             name, ext = os.path.splitext(safe_name)
             safe_name = name[:100] + ext
@@ -439,7 +458,7 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
 
     # 优先使用 SDK 下载
     if _sdk_lib:
-        logger.info(f"[WeCom] 使用 SDK 下载图片...")
+        logger.info(f"[WeCom] 使用 SDK 下载...")
         sdk = _ensure_sdk_init()
         if sdk:
             try:
@@ -452,18 +471,15 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
                 all_data = b""
                 indexbuf = b""  # 首次为空
                 max_iterations = 100  # 防止无限循环
-                chunks_info = []  # 记录每个分片信息
 
                 for iteration in range(max_iterations):
-                    # GetMediaData 参数（根据官方SDK头文件）:
-                    # sdk, indexbuf, sdkFileid, proxy, passwd, timeout, media_data
                     result = _sdk_lib.GetMediaData(
                         sdk,
-                        indexbuf,  # 首次为空，后续用上一次返回的 outindexbuf
-                        media_id.encode('utf-8'),  # sdkFileid
-                        b"",  # proxy
-                        b"",  # passwd
-                        30,  # 超时（秒）
+                        indexbuf,
+                        media_id.encode('utf-8'),
+                        b"",
+                        b"",
+                        30,
                         media_data_ptr
                     )
 
@@ -472,32 +488,19 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
                         _sdk_lib.FreeMediaData(media_data_ptr)
                         return None
 
-                    # 使用辅助函数从 MediaData_t 获取数据
                     data_ptr = _sdk_lib.GetData(media_data_ptr)
                     data_len = _sdk_lib.GetDataLen(media_data_ptr)
                     is_finish = _sdk_lib.IsMediaDataFinish(media_data_ptr)
 
-                    logger.info(f"[WeCom] 辅助函数返回: data_ptr={hex(ctypes.cast(data_ptr, ctypes.c_void_p).value if data_ptr else 0)}, data_len={data_len}, is_finish={is_finish}")
-
                     if data_ptr and data_len > 0:
-                        # 立即读取数据
                         chunk = ctypes.string_at(data_ptr, data_len)
-                        chunk_hex = chunk[:20].hex()
-                        chunks_info.append({
-                            "iteration": iteration + 1,
-                            "size": data_len,
-                            "first_bytes": chunk_hex
-                        })
                         all_data += chunk
-                        logger.info(f"[WeCom] 第{iteration+1}次获取: {data_len} bytes, 累计: {len(all_data)} bytes, 前20字节: {chunk_hex}")
+                        logger.info(f"[WeCom] 第{iteration+1}次: {data_len} bytes, 累计: {len(all_data)}")
                     else:
                         logger.warning(f"[WeCom] 第{iteration+1}次返回空数据")
 
-                    logger.info(f"[WeCom] is_finish={is_finish}")
-
                     if is_finish:
-                        logger.info(f"[WeCom] 图片下载完成，总大小: {len(all_data)} bytes")
-                        logger.info(f"[WeCom] 分片详情: {chunks_info}")
+                        logger.info(f"[WeCom] 下载完成，总大小: {len(all_data)} bytes")
                         break
 
                     # 获取下一次请求需要的 outindexbuf
@@ -506,46 +509,25 @@ def download_image(media_id: str, msg_id: str = "", seq: int = 0, roomid: str = 
                     outindexbuf_len = media_data.out_len
                     if outindexbuf and outindexbuf_len > 0:
                         indexbuf = ctypes.string_at(outindexbuf, outindexbuf_len)
-                        logger.debug(f"[WeCom] 下一分片 outindexbuf: {indexbuf[:50]}...")
                     else:
-                        logger.warning("[WeCom] 无法获取下一分片 outindexbuf，终止下载")
+                        logger.warning("[WeCom] 无法获取下一分片 outindexbuf")
                         break
 
                 # 保存文件
                 if all_data:
-                    logger.info(f"[WeCom] 下载数据总大小: {len(all_data)} bytes")
-                    logger.info(f"[WeCom] 前20字节: {all_data[:20].hex()}")
-
                     with open(local_path, "wb") as f:
                         f.write(all_data)
 
                     file_size = os.path.getsize(local_path)
-                    logger.info(f"[WeCom] 图片下载成功: {local_path} ({file_size} bytes)")
-
-                    # 上传到腾讯 COS
-                    try:
-                        from src.services.cos import upload_file
-                        cos_url = upload_file(local_path)
-                        if cos_url:
-                            logger.info(f"[WeCom] COS 上传成功: {cos_url}")
-                            _sdk_lib.FreeMediaData(media_data_ptr)
-                            return cos_url
-                        else:
-                            logger.warning("[WeCom] COS 上传失败，将返回本地路径")
-                    except ImportError:
-                        logger.warning("[WeCom] COS 模块未导入，将返回本地路径")
-                    except Exception as cos_err:
-                        logger.error(f"[WeCom] COS 上传异常: {cos_err}")
-
-                    # COS 上传失败时返回本地路径作为备选
+                    logger.info(f"[WeCom] 下载成功: {local_path} ({file_size} bytes)")
                     _sdk_lib.FreeMediaData(media_data_ptr)
                     return local_path
 
-                logger.error("[WeCom] 未获取到任何图片数据")
+                logger.error("[WeCom] 未获取到任何数据")
                 _sdk_lib.FreeMediaData(media_data_ptr)
 
             except Exception as e:
-                logger.error(f"[WeCom] SDK 下载图片异常: {e}")
+                logger.error(f"[WeCom] SDK 下载异常: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -566,9 +548,6 @@ def fetch_messages(limit: int = 1000, timeout: int = 5) -> List[dict]:
 import asyncio
 from src.models.chat_record import UnifiedMessage
 from src.services.message_processor import process_message
-from src.utils.reply_sender import _send_rpa_notification
-from src.services.database import DatabaseService
-from src.services.telegram import send_admin_notification
 
 def parse_wecom_message(msg: dict) -> Optional[UnifiedMessage]:
     """
@@ -655,7 +634,7 @@ async def run_wecom_polling():
     while True:
         try:
             # 使用 to_thread 在异步事件循环中运行同步的 fetch_messages
-            # 将超时延长至20秒，与Telegram保持一致，提高长轮询效率
+            # 将超时延长至20秒，提高长轮询效率
             messages = await asyncio.to_thread(fetch_messages, limit=100, timeout=20)
 
             if messages:
@@ -670,7 +649,7 @@ async def run_wecom_polling():
                     else:
                         logger_polling.warning(f"[WeCom Polling] 解析消息失败，已跳过: {msg_data.get('msgid')}")
             else:
-                # 如果没有消息，暂停1秒，与Telegram保持一致
+                # 如果没有消息，暂停1秒
                 await asyncio.sleep(1)
 
         except Exception as e:

@@ -1,5 +1,0 @@
-export * from './request'
-export { default as authApi } from './auth'
-export { default as birthdayApi } from './birthday'
-export { default as messageApi } from './message'
-export { default as configApi } from './config'

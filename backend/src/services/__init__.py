@@ -2,7 +2,7 @@
 业务服务模块
 """
 
-from .database import DatabaseService, init_db, save_wecom_message, save_wecom_messages_batch
+from .database import DatabaseService, init_db
 from .wecom import WeComService, init_wecom, fetch_messages
 from .craft import init_craft, save_blocks_to_craft
 from .formatter import (
@@ -15,8 +15,6 @@ from . import ierror
 __all__ = [
     "DatabaseService",
     "init_db",
-    "save_wecom_message",
-    "save_wecom_messages_batch",
     "WeComService",
     "init_wecom",
     "fetch_messages",

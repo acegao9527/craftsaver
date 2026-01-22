@@ -6,14 +6,3 @@ pycryptodome
 lxml
 httpx
 python-dotenv
-scalar-fastapi
-crewai
-crewai_tools
-langchain
-langchain_openai
-telepot
-apscheduler
-borax
-cos-python-sdk-v5
-chardet
-imap-tools
