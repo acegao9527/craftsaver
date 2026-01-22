@@ -1,4 +1,4 @@
-# Multi-stage build for SaveHelper - WeCom to Craft Connector
+# Multi-stage build for CraftSaver - WeCom to Craft Connector
 FROM python:3.12-slim
 
 # Set timezone
@@ -8,25 +8,25 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Set working directory
 WORKDIR /app
 
-# Copy backend requirements
-COPY backend/requirements.txt .
+# Copy requirements
+COPY requirements.txt .
 RUN pip install --no-cache-dir --index-url https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com -r requirements.txt
 
-# Copy backend source code (imports use 'src.xxx' pattern)
-COPY backend/src /app/src
+# Copy source code
+COPY src /app/src
 
 # Copy SQL files
-COPY backend/sql /app/sql
+COPY sql /app/sql
 
 # Copy project root files
-COPY backend/main.py .
-COPY ../.env .
-COPY ../private_key.pem .
+COPY main.py .
+COPY .env .
+COPY private_key.pem .
 
 # Copy C SDK directories (both x86_64 and ARM64)
 # TARGETARCH: arm64 for ARM, amd64 for x86_64
-COPY backend/C_sdk /app/C_sdk
-COPY backend/C_sdk_arm /app/C_sdk_arm
+COPY C_sdk /app/C_sdk
+COPY C_sdk_arm /app/C_sdk_arm
 
 # Install utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -1,10 +1,10 @@
 services:
-  savehelper_app:
+  craftsaver_app:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: savehelper_app
-    image: save-helper:latest
+      context: .
+      dockerfile: Dockerfile
+    container_name: craftsaver_app
+    image: craftsaver:latest
     restart: always
     ports:
       - "8000:8000"
@@ -12,7 +12,7 @@ services:
       - ${HOST_IMAGE_DIR:-./data/images}:/app/images
       - ${HOST_DATA_DIR:-./data}:/app/data
     env_file:
-      - ../.env
+      - .env
     environment:
       - TZ=Asia/Shanghai
       - SQLITE_DB_PATH=/app/data/savehelper.db

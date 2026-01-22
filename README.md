@@ -23,36 +23,38 @@ CraftSaver 是一个将企业微信消息同步到 Craft 文档的工具，支�
 ```
 CraftSaver/
 ├── docker-deploy.sh             # Docker 部署脚本
-├── docker/
-│   ├── Dockerfile               # Docker 构建文件
-│   └── docker-compose.yml       # Docker Compose 配置
-├── backend/
-│   ├── main.py                  # 主入口 (FastAPI + 消息轮询)
-│   ├── .env.example             # 环境变量配置示例
-│   ├── requirements.txt         # Python 依赖
-│   ├── sql/                     # 数据库初始化脚本
-│   └── src/
-│       ├── api/
-│       │   └── routers/         # API 路由
-│       │       ├── wecom.py     # 企微 API 路由
-│       │       └── craft.py     # Craft API 路由
-│       ├── services/            # 服务模块
-│       │   ├── database.py      # SQLite 数据库服务
-│       │   ├── wecom.py         # 企业微信 SDK
-│       │   ├── craft.py         # Craft 集成
-│       │   ├── message_processor.py  # 消息处理器
-│       │   ├── formatter.py     # 消息格式化
-│       │   └── wecom_crypto.py  # 企微回调加解密
-│       ├── handlers/            # 消息处理器
-│       ├── models/              # 数据模型
-│       └── utils/               # 工具函数
+├── Dockerfile                   # Docker 构建文件
+├── docker-compose.yml           # Docker Compose 配置
+├── .env.example                 # 环境变量配置示例
+├── requirements.txt             # Python 依赖
+├── main.py                      # 主入口 (FastAPI + 消息轮询)
+├── sql/                         # 数据库初始化脚本
+├── src/                         # 源代码
+│   ├── api/
+│   │   └── routers/             # API 路由
+│   │       ├── wecom.py         # 企微 API 路由
+│   │       └── craft.py         # Craft API 路由
+│   ├── services/                # 服务模块
+│   │   ├── database.py          # SQLite 数据库服务
+│   │   ├── wecom.py             # 企业微信 SDK
+│   │   ├── craft.py             # Craft 集成
+│   │   ├── message_processor.py # 消息处理器
+│   │   ├── formatter.py         # 消息格式化
+│   │   └── wecom_crypto.py      # 企微回调加解密
+│   ├── handlers/                # 消息处理器
+│   ├── models/                  # 数据模型
+│   └── utils/                   # 工具函数
+├── C_sdk/                       # 企业微信 SDK (x86_64)
+├── C_sdk_arm/                   # 企业微信 SDK (ARM64)
+├── data/                        # 数据存储目录
+└── nginx.conf                   # Nginx 配置
 ```
 
 ## 快速开始
 
 ### 1. 配置环境变量
 
-复制 `backend/.env.example` 为 `backend/.env` 并填写配置：
+复制 `.env.example` 为 `.env` 并填写配置：
 
 ```ini
 # 企业微信
@@ -95,10 +97,9 @@ docker logs -f craftsaver_app
 
 ```bash
 # 安装依赖
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # 启动服务
-cd backend
 python main.py
 ```
 
