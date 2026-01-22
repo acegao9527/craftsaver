@@ -1,0 +1,5 @@
+# iMessage 依赖
+# 无额外依赖，使用 Python 标准库
+# - subprocess: 执行 AppleScript
+# - sqlite3: 读取消息数据库
+# - asyncio: 异步支持
