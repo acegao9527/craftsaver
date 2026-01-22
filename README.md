@@ -7,7 +7,7 @@ CraftSaver 是一个将企业微信消息同步到 Craft 文档的工具，支�
 ## 核心功能
 
 - **企业微信消息同步**：使用官方 SDK 拉取消息存档，支持文本、图片、链接、视频、文件等消息类型
-- **统一消息存储**：将不同来源的消息统一存储到 SQLite 数据库
+- **统一消息存储**：将消息统一存储到 SQLite 数据库
 - **Craft 集成**：将消息智能转换为 Craft 原生块保存到文档
 
 ## 技术栈
@@ -97,7 +97,8 @@ docker logs -f craftsaver_app
 # 安装依赖
 pip install -r backend/requirements.txt
 
-# 启动 backend
+# 启动服务
+cd backend
 python main.py
 ```
 
