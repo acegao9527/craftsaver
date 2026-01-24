@@ -141,9 +141,9 @@ class BindingService:
             wecom_openid=row['wecom_openid'],
             craft_link_id=row['craft_link_id'],
             craft_document_id=row['craft_document_id'],
-            craft_token=row.get('craft_token'),
-            display_name=row.get('display_name'),
-            is_enabled=bool(row['is_enabled']) if 'is_enabled' in row else True,
+            craft_token=row['craft_token'] if 'craft_token' in row.keys() else None,
+            display_name=row['display_name'] if 'display_name' in row.keys() else None,
+            is_enabled=bool(row['is_enabled']) if 'is_enabled' in row.keys() else True,
             created_at=datetime.fromisoformat(row['created_at']) if isinstance(row['created_at'], str) else row['created_at'],
             updated_at=datetime.fromisoformat(row['updated_at']) if isinstance(row['updated_at'], str) else row['updated_at']
         )
@@ -176,18 +176,36 @@ def verify_craft_access(link_id: str, document_id: str, token: str = None) -> tu
         "fetchMetadata": "false"
     }
 
+    logger.info(f"[Binding] 验证 Craft: link_id={link_id}, document_id={document_id}")
+
     try:
         response = requests.get(url, params=params, headers=headers, timeout=30)
+        logger.info(f"[Binding] Craft API 响应: status={response.status_code}, body={response.text[:200]}")
+
         if response.status_code == 200:
             data = response.json()
-            # 尝试获取文档标题
+            logger.info(f"[Binding] Craft API JSON 类型: {type(data).__name__}")
+
+            # Craft API 返回 dict，content 可能是 list 或 dict
             title = None
             if isinstance(data, dict):
-                title = data.get('title') or data.get('name') or data.get('content', {}).get('title')
+                title = data.get('title') or data.get('name')
+                content = data.get('content')
+                if not title and isinstance(content, dict):
+                    title = content.get('title')
+                elif not title and isinstance(content, list) and len(content) > 0:
+                    # content 是 list，取第一个 page 的 markdown 作为标题
+                    first_item = content[0]
+                    if isinstance(first_item, dict):
+                        title = first_item.get('markdown') or first_item.get('title')
+
             if title:
+                logger.info(f"[Binding] 验证成功: title={title}")
                 return True, title
+            logger.info(f"[Binding] 验证成功，但未找到标题")
             return True, document_id
         else:
             return False, f"验证失败: HTTP {response.status_code}"
     except Exception as e:
+        logger.error(f"[Binding] 验证异常: {e}")
         return False, f"验证失败: {str(e)}"
