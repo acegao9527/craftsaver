@@ -63,6 +63,15 @@ WECOM_BOT_USERID=your_bot_userid
 # SQLite 数据库
 SQLITE_DB_PATH=data/craftsaver.db
 
+# 腾讯云 COS 配置（用于上传图片/文件到云存储）
+# 从腾讯云控制台获取: https://console.cloud.tencent.com/cos
+COS_SECRET_ID=your_cos_secret_id
+COS_SECRET_KEY=your_cos_secret_key
+COS_REGION=ap-shanghai
+COS_BUCKET=wecom-1373472507
+COS_BASE_URL=https://wecom-1373472507.cos.ap-shanghai.myqcloud.com
+COS_ROOT_DIR=lhcos-data
+
 # 应用端口
 APP_PORT=8001
 
@@ -145,6 +154,12 @@ docker logs craftsaver_app
 | `WECOM_TOKEN` | 回调 Token | 是 | - |
 | `WECOM_ENCODING_AES_KEY` | 回调 AES Key | 是 | - |
 | `WECOM_BOT_USERID` | 机器人UserID（可选） | 否 | - |
+| `COS_SECRET_ID` | 腾讯云 SecretId（用于上传图片） | 是 | - |
+| `COS_SECRET_KEY` | 腾讯云 SecretKey | 是 | - |
+| `COS_REGION` | 腾讯云存储桶地域 | 是 | ap-shanghai |
+| `COS_BUCKET` | 腾讯云存储桶名称 | 是 | - |
+| `COS_BASE_URL` | 腾讯云存储桶访问地址 | 是 | - |
+| `COS_ROOT_DIR` | 腾讯云存储根目录 | 是 | lhcos-data |
 | `APP_PORT` | 应用端口 | 否 | 8001 |
 | `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 | data/craftsaver.db |
 
@@ -152,6 +167,7 @@ docker logs craftsaver_app
 - `CRAFT_API_TOKEN`、`CRAFT_LINKS_ID` 不再使用全局配置
 - 每个用户的 Craft 配置通过绑定 API 存储在数据库中
 - 未绑定的用户消息会被丢弃
+- 图片/文件会自动上传到腾讯云 COS
 
 ## 许可证
 

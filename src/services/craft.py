@@ -101,6 +101,9 @@ async def save_blocks_to_craft(
             if response.status_code == 200:
                 logger.info(f"[Craft] 保存成功（无 JSON 响应）: {len(blocks)} blocks")
                 return True
+            elif response.status_code in (502, 503, 504):
+                logger.error(f"[Craft] 保存失败: Craft 服务暂时不可用 (status={response.status_code})")
+                return False
             logger.error(f"[Craft] 保存失败: 响应不是有效 JSON, status={response.status_code}")
             return False
 

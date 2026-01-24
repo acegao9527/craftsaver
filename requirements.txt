@@ -7,3 +7,4 @@ lxml
 httpx
 python-dotenv
 scalar-fastapi
+cos-python-sdk-v5

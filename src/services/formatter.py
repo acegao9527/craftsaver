@@ -5,12 +5,25 @@
 """
 import os
 import logging
-from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from src.models.chat_record import UnifiedMessage
 
 logger = logging.getLogger(__name__)
+
+
+def upload_to_cos(local_path: str) -> Optional[str]:
+    """上传文件到 COS，返回公开访问 URL"""
+    try:
+        from src.services.cos import upload_image
+        url = upload_image(local_path)
+        if url:
+            return url
+        logger.error(f"[Formatter] COS 上传失败: {local_path}")
+        return None
+    except Exception as e:
+        logger.error(f"[Formatter] COS 上传异常: {e}")
+        return None
 
 
 class MessageFormatter:
@@ -24,7 +37,7 @@ class MessageFormatter:
         格式化 UnifiedMessage 为 Craft blocks
         """
         blocks = []
-        
+
         # 内容处理
         if msg.msg_type == "text":
             blocks.append({
@@ -32,7 +45,7 @@ class MessageFormatter:
                 "markdown": msg.content
             })
         elif msg.msg_type == "image":
-            # 图片处理: content 可能是本地路径或 COS URL
+            # 图片处理
             if msg.content:
                 # 检查是否是有效的 URL（以 http:// 或 https:// 开头）
                 if msg.content.startswith("http://") or msg.content.startswith("https://"):
@@ -42,12 +55,20 @@ class MessageFormatter:
                     })
                 # 检查本地文件是否存在
                 elif os.path.exists(msg.content):
-                    filename = os.path.basename(msg.content)
-                    public_url = f"https://wecom-1373472507.cos.ap-shanghai.myqcloud.com/lhcos-data/{filename}"
-                    blocks.append({
-                        "type": "image",
-                        "url": public_url
-                    })
+                    # 上传到 COS 获取公开 URL
+                    cos_url = upload_to_cos(msg.content)
+                    if cos_url:
+                        blocks.append({
+                            "type": "image",
+                            "url": cos_url
+                        })
+                    else:
+                        filename = os.path.basename(msg.content)
+                        logger.warning(f"[Formatter] 图片上传失败，使用文件名作为描述: {filename}")
+                        blocks.append({
+                            "type": "text",
+                            "markdown": f"🖼 **{filename}**"
+                        })
                 else:
                     blocks.append({
                         "type": "text",
@@ -59,7 +80,7 @@ class MessageFormatter:
                     "markdown": "🖼 **收到图片** (无内容)"
                 })
         elif msg.msg_type == "file":
-             # 文件处理: content 可能是本地路径或 COS URL
+            # 文件处理
             if msg.content:
                 # 优先从原始数据中获取真实文件名
                 raw_file_data = msg.raw_data.get("file", {}) if msg.raw_data else {}
@@ -67,7 +88,6 @@ class MessageFormatter:
 
                 # 检查是否是有效的 URL
                 if msg.content.startswith("http://") or msg.content.startswith("https://"):
-                    # 如果没有原始文件名，从 URL 中提取
                     if not display_name:
                         display_name = msg.content.split("/")[-1]
                     blocks.append({
@@ -78,17 +98,24 @@ class MessageFormatter:
                     })
                 # 检查本地文件是否存在
                 elif os.path.exists(msg.content):
-                    # 如果没有原始文件名，则使用保存的文件名
                     if not display_name:
                         display_name = os.path.basename(msg.content)
-                    saved_filename = os.path.basename(msg.content)
-                    public_url = f"https://wecom-1373472507.cos.ap-shanghai.myqcloud.com/lhcos-data/{saved_filename}"
-                    blocks.append({
-                        "type": "file",
-                        "url": public_url,
-                        "fileName": display_name,
-                        "markdown": f"[{display_name}]({public_url})"
-                    })
+
+                    # 上传到 COS
+                    cos_url = upload_to_cos(msg.content)
+                    if cos_url:
+                        blocks.append({
+                            "type": "file",
+                            "url": cos_url,
+                            "fileName": display_name,
+                            "markdown": f"[{display_name}]({cos_url})"
+                        })
+                    else:
+                        logger.warning(f"[Formatter] 文件上传失败: {display_name}")
+                        blocks.append({
+                            "type": "text",
+                            "markdown": f"📁 **{display_name}** (上传失败)"
+                        })
                 else:
                     blocks.append({
                         "type": "text",
@@ -100,9 +127,8 @@ class MessageFormatter:
                     "markdown": "📁 **收到文件** (无内容)"
                 })
         elif msg.msg_type == "video":
-            # 视频处理: content 可能是本地路径或 COS URL
+            # 视频处理
             if msg.content:
-                # 检查是否是有效的 URL
                 if msg.content.startswith("http://") or msg.content.startswith("https://"):
                     filename = msg.content.split("/")[-1]
                     blocks.append({
@@ -111,18 +137,22 @@ class MessageFormatter:
                         "fileName": filename,
                         "markdown": f"[{filename}]({msg.content})"
                     })
-                # 检查本地文件是否存在
                 elif os.path.exists(msg.content):
-                    import urllib.parse
                     filename = os.path.basename(msg.content)
-                    safe_filename = urllib.parse.quote(filename)
-                    public_url = f"https://wecom-1373472507.cos.ap-shanghai.myqcloud.com/lhcos-data/{safe_filename}"
-                    blocks.append({
-                        "type": "file",
-                        "url": public_url,
-                        "fileName": filename,
-                        "markdown": f"[{filename}]({public_url})"
-                    })
+                    cos_url = upload_to_cos(msg.content)
+                    if cos_url:
+                        blocks.append({
+                            "type": "file",
+                            "url": cos_url,
+                            "fileName": filename,
+                            "markdown": f"[{filename}]({cos_url})"
+                        })
+                    else:
+                        logger.warning(f"[Formatter] 视频上传失败: {filename}")
+                        blocks.append({
+                            "type": "text",
+                            "markdown": f"🎥 **{filename}** (上传失败)"
+                        })
                 else:
                     blocks.append({
                         "type": "text",
@@ -134,15 +164,15 @@ class MessageFormatter:
                     "markdown": "🎥 **收到视频** (无内容)"
                 })
         elif msg.msg_type == "link":
-             final_url = msg.content.strip()
-             
-             if final_url and final_url.startswith("http"):
-                 blocks.append({
+            final_url = msg.content.strip()
+
+            if final_url and final_url.startswith("http"):
+                blocks.append({
                     "type": "richUrl",
                     "url": final_url
                 })
-             else:
-                 blocks.append({
+            else:
+                blocks.append({
                     "type": "text",
                     "markdown": f"🔗 **无效链接**: {final_url}"
                 })
@@ -151,8 +181,9 @@ class MessageFormatter:
                 "type": "text",
                 "markdown": f"[{msg.msg_type}] {msg.content}"
             })
-            
+
         return blocks
+
 
 # 全局格式化器实例
 _formatter = None

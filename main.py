@@ -42,6 +42,10 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/craftsaver.db")
 init_db(db_path=SQLITE_DB_PATH)
 startup_logger.info(f"Database config initialized (Path: {SQLITE_DB_PATH})")
 
+# 3. 初始化腾讯云 COS
+from src.services.cos import init_cos
+init_cos()
+
 # 应用配置
 APP_PORT = int(os.getenv("APP_PORT", "8002"))
 APP_TITLE = "craftSaver - WeCom to Craft Connector"
