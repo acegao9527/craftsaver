@@ -263,10 +263,12 @@ class WebClipper:
         logger.info(f"[Clipper] 成功提取: {content['title']}, {len(blocks)} blocks")
 
         # 步骤5：构建 Page Block
+        # 如果标题为空，使用 URL 作为标题
+        page_title = content["title"] or url
         page_block = {
             "type": "page",
             "textStyle": "page",
-            "markdown": content["title"],
+            "markdown": page_title,
             "content": blocks
         }
 
