@@ -26,28 +26,20 @@ CraftSaver/
 ├── Dockerfile                   # Docker 构建文件
 ├── docker-compose.yml           # Docker Compose 配置
 ├── .env.example                 # 环境变量配置示例
+├── .env                         # 环境变量
 ├── requirements.txt             # Python 依赖
 ├── main.py                      # 主入口 (FastAPI + 消息轮询)
-├── sql/                         # 数据库初始化脚本
 ├── src/                         # 源代码
-│   ├── api/
-│   │   └── routers/             # API 路由
-│   │       ├── wecom.py         # 企微 API 路由
-│   │       └── craft.py         # Craft API 路由
-│   ├── services/                # 服务模块
-│   │   ├── database.py          # SQLite 数据库服务
-│   │   ├── wecom.py             # 企业微信 SDK
-│   │   ├── craft.py             # Craft 集成
-│   │   ├── message_processor.py # 消息处理器
-│   │   ├── formatter.py         # 消息格式化
-│   │   └── wecom_crypto.py      # 企微回调加解密
+│   ├── api/routers/             # API 路由
 │   ├── handlers/                # 消息处理器
 │   ├── models/                  # 数据模型
+│   ├── services/                # 服务模块
+│   ├── sql/                     # 数据库初始化脚本
 │   └── utils/                   # 工具函数
-├── C_sdk/                       # 企业微信 SDK (x86_64)
-├── C_sdk_arm/                   # 企业微信 SDK (ARM64)
-├── data/                        # 数据存储目录
-└── nginx.conf                   # Nginx 配置
+├── lib/                         # 第三方库
+│   ├── wework-x86_64/           # WeCom SDK (x86_64)
+│   └── wework-arm64/            # WeCom SDK (ARM64)
+└── data/                        # 数据存储目录
 ```
 
 ## 快速开始
@@ -78,6 +70,9 @@ DEFAULT_CRAFT_TOKEN=
 
 # SQLite 数据库
 SQLITE_DB_PATH=data/savehelper.db
+
+# 应用端口
+APP_PORT=8001
 
 # 日志级别
 LOG_LEVEL=INFO
@@ -117,7 +112,7 @@ python main.py
 ./docker-deploy.sh
 
 # 验证服务
-curl http://localhost:8000/
+curl http://localhost:8001/
 
 # 检查日志
 docker logs craftsaver_app
@@ -125,15 +120,16 @@ docker logs craftsaver_app
 
 ## 环境变量说明
 
-| 变量 | 说明 | 必需 |
-|------|------|------|
-| `WECOM_CORP_ID` | 企业ID | 是 |
-| `WECOM_APP_SECRET` | 消息存档 Secret | 是 |
-| `WECOM_TOKEN` | 回调 Token | 是 |
-| `WECOM_ENCODING_AES_KEY` | 回调 AES Key | 是 |
-| `CRAFT_API_TOKEN` | Craft API Token | 是 |
-| `CRAFT_LINKS_ID` | Craft 文档 ID | 是 |
-| `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 |
+| 变量 | 说明 | 必需 | 默认值 |
+|------|------|------|--------|
+| `WECOM_CORP_ID` | 企业ID | 是 | - |
+| `WECOM_APP_SECRET` | 消息存档 Secret | 是 | - |
+| `WECOM_TOKEN` | 回调 Token | 是 | - |
+| `WECOM_ENCODING_AES_KEY` | 回调 AES Key | 是 | - |
+| `CRAFT_API_TOKEN` | Craft API Token | 是 | - |
+| `CRAFT_LINKS_ID` | Craft 文档 ID | 是 | - |
+| `APP_PORT` | 应用端口 | 否 | 8001 |
+| `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 | data/savehelper.db |
 
 ## 许可证
 

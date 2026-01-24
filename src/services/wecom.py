@@ -122,16 +122,16 @@ def _load_sdk_lib():
     # 确定 SDK 路径
     if system == "Darwin" and machine in ("arm64", "aarch64"):
         # Mac ARM (M1/M2)
-        sdk_path = "backend/C_sdk_arm/libWeWorkFinanceSdk_C.so"
+        sdk_path = "lib/wework-arm64/libWeWorkFinanceSdk_C.so"
     elif system == "Linux" and machine == "x86_64":
         # Linux x86_64
-        sdk_path = "backend/C_sdk/libWeWorkFinanceSdk_C.so"
+        sdk_path = "lib/wework-x86_64/libWeWorkFinanceSdk_C.so"
     elif system == "Linux" and machine == "aarch64":
         # Linux ARM64
-        sdk_path = "backend/C_sdk_arm/libWeWorkFinanceSdk_C.so"
+        sdk_path = "lib/wework-arm64/libWeWorkFinanceSdk_C.so"
     else:
         # 默认使用 Linux SDK
-        sdk_path = "backend/C_sdk/libWeWorkFinanceSdk_C.so"
+        sdk_path = "lib/wework-x86_64/libWeWorkFinanceSdk_C.so"
 
     sdk_paths = [
         sdk_path,
@@ -284,22 +284,15 @@ class WeComService:
         Returns:
             解密后的消息列表
         """
-        logger_polling.info(f"[WeCom] 开始获取消息: limit={limit}")
-
         if not _sdk_lib:
-            logger_polling.error("[WeCom] SDK 未加载")
             return []
 
         sdk = _ensure_sdk_init()
         if not sdk:
-            logger_polling.error("[WeCom] SDK 初始化失败")
             return []
-
-        # from src.services.database import DatabaseService
 
         messages = []
         seq = get_last_seq_from_file()
-        logger_polling.info(f"[WeCom] 从文件获取到最后的序号: seq={seq}")
 
         try:
             slice_ptr = _sdk_lib.NewSlice()
@@ -315,7 +308,6 @@ class WeComService:
 
             data_ptr = _sdk_lib.GetContentFromSlice(slice_ptr)
             if not data_ptr:
-                logger_polling.error("[WeCom] GetContentFromSlice 返回空指针")
                 _sdk_lib.FreeSlice(slice_ptr)
                 return []
 
@@ -326,20 +318,15 @@ class WeComService:
             data = json.loads(data_str)
             chat_data = data.get("chatdata", [])
 
-            logger_polling.info(f"[WeCom] SDK 返回消息条数: {len(chat_data)}")
-
             if not chat_data:
                 return []
 
             # 获取机器人自己的UserID，用于过滤消息
             bot_userid = os.getenv("WECOM_BOT_USERID")
-            if bot_userid:
-                logger_polling.info(f"[WeCom] 将会忽略来自 '{bot_userid}' 的消息")
 
             # 解密每条消息
             max_seq = seq
-            for i, msg in enumerate(chat_data):
-                logger_polling.debug(f"[WeCom] 原始消息 {i}: {msg}")
+            for msg in chat_data:
                 decrypt_result = _decrypt_message(
                     msg.get('encrypt_random_key', ''),
                     msg.get('encrypt_chat_msg', '')
@@ -349,8 +336,6 @@ class WeComService:
                     sender = decrypt_result.get('from')
                     # 如果配置了机器人ID且消息来自机器人自己，则忽略
                     if bot_userid and sender == bot_userid:
-                        logger_polling.info(f"[WeCom] 忽略企微账号自身消息: msgid={msg.get('msgid')}, from={sender}")
-                        # 仍然需要更新seq以跳过这条消息
                         current_seq = msg.get('seq')
                         if current_seq > max_seq:
                             max_seq = current_seq
@@ -362,16 +347,12 @@ class WeComService:
                     messages.append(decrypt_result)
                     if current_seq > max_seq:
                         max_seq = current_seq
-                    logger_polling.info(f"[WeCom] 解密成功: msgid={msg.get('msgid')}, from={sender}, msgtype={decrypt_result.get('msgtype')}")
-                    logger_polling.debug(f"[WeCom] 解密后消息内容: {decrypt_result}")
                 else:
                     logger_polling.warning(f"[WeCom] 解密失败: msgid={msg.get('msgid')}")
 
             # 如果成功拉取到新消息，更新seq
             if max_seq > seq:
                 save_last_seq_to_file(max_seq)
-
-            logger_polling.info(f"[WeCom] 解密后消息数: {len(messages)}")
 
         except Exception as e:
             logger_polling.error(f"[WeCom] 获取消息异常: {e}")
@@ -592,7 +573,7 @@ def parse_wecom_message(msg: dict) -> Optional[UnifiedMessage]:
                 if local_path:
                     content = local_path
                 else:
-                    logger_polling.error(f"[WeCom Parser] Failed to download media: {msg_id}")
+                    logger_polling.warning(f"[WeCom Parser] 下载媒体失败: {msg_id}")
                     content = json.dumps(media_data)
             else:
                 content = json.dumps(media_data)
@@ -638,22 +619,17 @@ async def run_wecom_polling():
             messages = await asyncio.to_thread(fetch_messages, limit=100, timeout=20)
 
             if messages:
-                logger_polling.info(f"[WeCom Polling] 拉取到 {len(messages)} 条新消息。")
+                logger_polling.info(f"[WeCom Polling] 拉取到 {len(messages)} 条消息")
                 for msg_data in messages:
                     unified_msg = parse_wecom_message(msg_data)
                     if unified_msg:
-                        # 3. 异步地调用核心处理器处理消息持久化
-                        # 注意：通知逻辑已下放到各自的 Handler 中，此处不再发送通用通知
-                        logger_polling.info(f"[WeCom Polling] 异步触发消息分发: {unified_msg.msg_id}")
                         asyncio.create_task(process_message(unified_msg))
                     else:
-                        logger_polling.warning(f"[WeCom Polling] 解析消息失败，已跳过: {msg_data.get('msgid')}")
+                        logger_polling.warning(f"[WeCom Polling] 解析失败，跳过: {msg_data.get('msgid')}")
             else:
-                # 如果没有消息，暂停1秒
                 await asyncio.sleep(1)
 
         except Exception as e:
-            logger_polling.error(f"[WeCom Polling] 轮询主循环发生错误: {e}", exc_info=True)
-            # 发生未知错误时，暂停15秒，防止高频错误刷屏
+            logger_polling.error(f"[WeCom Polling] 轮询错误: {e}", exc_info=True)
             await asyncio.sleep(15)
 

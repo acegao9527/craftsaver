@@ -46,6 +46,9 @@ startup_logger.info(f"Database config initialized (Path: {SQLITE_DB_PATH})")
 CRAFT_API_TOKEN = os.getenv("CRAFT_API_TOKEN")
 CRAFT_LINKS_ID = os.getenv("CRAFT_LINKS_ID")
 
+# 应用配置
+APP_PORT = int(os.getenv("APP_PORT", "8002"))
+
 # 3. 初始化 Craft
 from src.services.craft import init_craft
 init_craft(
@@ -76,7 +79,7 @@ async def startup_event():
         cursor = conn.cursor()
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        sql_dir = os.path.join(base_dir, "sql")
+        sql_dir = os.path.join(base_dir, "src/sql")
 
         sql_files = [
             os.path.join(sql_dir, "create_unified_messages.sql"),
@@ -135,8 +138,8 @@ app.include_router(craft_router)
 @app.get("/")
 async def root():
     """根路径"""
-    return {"message": "SaveHelper is running", "version": "1.0.0"}
+    return {"message": "craftsaver is running", "version": "1.0.0"}
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=APP_PORT, reload=True)

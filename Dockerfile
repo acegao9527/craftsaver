@@ -12,21 +12,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --index-url https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com -r requirements.txt
 
-# Copy source code
+# Copy source code (includes SQL files)
 COPY src /app/src
-
-# Copy SQL files
-COPY sql /app/sql
 
 # Copy project root files
 COPY main.py .
 COPY .env .
 COPY private_key.pem .
 
-# Copy C SDK directories (both x86_64 and ARM64)
-# TARGETARCH: arm64 for ARM, amd64 for x86_64
-COPY C_sdk /app/C_sdk
-COPY C_sdk_arm /app/C_sdk_arm
+# Copy SDK libraries (both x86_64 and ARM64)
+COPY lib /app/lib
 
 # Install utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -36,25 +31,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy correct SDK to /usr/local/lib based on platform architecture
-RUN if [ -f "C_sdk_arm/libWeWorkFinanceSdk_C.so" ]; then \
-        cp C_sdk_arm/libWeWorkFinanceSdk_C.so /usr/local/lib/libWeWorkFinanceSdk.so && ldconfig; \
-    elif [ -f "C_sdk/libWeWorkFinanceSdk_C.so" ]; then \
-        cp C_sdk/libWeWorkFinanceSdk_C.so /usr/local/lib/libWeWorkFinanceSdk.so && ldconfig; \
+RUN if [ -f "lib/wework-arm64/libWeWorkFinanceSdk_C.so" ]; then \
+        cp lib/wework-arm64/libWeWorkFinanceSdk_C.so /usr/local/lib/libWeWorkFinanceSdk.so && ldconfig; \
+    elif [ -f "lib/wework-x86_64/libWeWorkFinanceSdk_C.so" ]; then \
+        cp lib/wework-x86_64/libWeWorkFinanceSdk_C.so /usr/local/lib/libWeWorkFinanceSdk.so && ldconfig; \
     fi
 
 # Set environment variables
 ENV PYTHONPATH=/app:${PYTHONPATH}
-ENV LD_LIBRARY_PATH=/usr/local/lib:/app/C_sdk:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/lib:/app/lib:${LD_LIBRARY_PATH}
+ENV APP_PORT=${APP_PORT:-8001}
 
 # Create data directory
 RUN mkdir -p /app/data
 
 # Expose port
-EXPOSE 8000
+EXPOSE ${APP_PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${APP_PORT}/')" || exit 1
 
 # Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${APP_PORT}"]
