@@ -79,12 +79,11 @@ def upload_file(local_path: str) -> Optional[str]:
     try:
         logger.info(f"[COS] 开始上传: {local_path} -> {cos_key}")
 
-        with open(local_path, 'rb') as f:
-            _cos_client.upload_file(
-                Bucket=COS_BUCKET,
-                Key=cos_key,
-                Body=f
-            )
+        _cos_client.upload_file(
+            Bucket=COS_BUCKET,
+            Key=cos_key,
+            LocalFilePath=local_path
+        )
 
         url = get_cos_url(filename)
         logger.info(f"[COS] 上传成功: {url}")
