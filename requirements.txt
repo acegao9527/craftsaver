@@ -8,3 +8,5 @@ httpx
 python-dotenv
 scalar-fastapi
 cos-python-sdk-v5
+beautifulsoup4
+readability-lxml
