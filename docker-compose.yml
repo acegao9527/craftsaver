@@ -1,9 +1,9 @@
 services:
-  craftsaver_app:
+  craftsaver:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: craftsaver_app
+    container_name: craftsaver
     image: craftsaver:latest
     restart: always
     ports:
@@ -11,6 +11,7 @@ services:
     volumes:
       - ${HOST_IMAGE_DIR:-./data/images}:/app/images
       - ${HOST_DATA_DIR:-./data}:/app/data
+      - ./lib:/app/lib
     env_file:
       - .env
     environment:
