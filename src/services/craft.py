@@ -3,6 +3,7 @@ Craft 集成服务模块
 """
 import json
 import logging
+import time
 from typing import List, Dict
 
 import requests
@@ -38,6 +39,9 @@ async def save_blocks_to_craft(
     logger.info(f"[Craft] 开始保存: {len(blocks)} blocks -> link={link_id}, doc={document_id}")
     for i, block in enumerate(blocks):
         logger.info(f"[Craft] Block[{i}]: {block}")
+
+    # 添加请求间隔，避免限流
+    time.sleep(0.5)
 
     url = f"{API_BASE_URL}/{link_id}/api/v1/blocks"
     headers = {
@@ -75,6 +79,21 @@ async def save_blocks_to_craft(
             if response.status_code in (200, 201) and "items" in response_json:
                 logger.info(f"[Craft] 保存成功: {len(blocks)} blocks")
                 return True
+            elif response.status_code == 404:
+                logger.error(f"[Craft] 保存失败: 文档不存在，请检查 link_id 和 document_id 是否正确")
+                logger.error(f"[Craft] link_id={link_id}, document_id={document_id}")
+                return False
+            elif response.status_code == 429:
+                # 请求频率限制，添加延迟后重试
+                logger.warning(f"[Craft] 请求频率限制，等待后重试...")
+                time.sleep(2)
+                response = requests.request("POST", url, json=body, headers=headers)
+                logger.info(f"[Craft] 重试 Status: {response.status_code}")
+                if response.status_code in (200, 201):
+                    logger.info(f"[Craft] 重试成功: {len(blocks)} blocks")
+                    return True
+                logger.error(f"[Craft] 重试失败: {response.text[:200]}")
+                return False
             else:
                 logger.error(f"[Craft] 保存失败: 响应格式异常 {response_json}")
                 return False
@@ -82,7 +101,7 @@ async def save_blocks_to_craft(
             if response.status_code == 200:
                 logger.info(f"[Craft] 保存成功（无 JSON 响应）: {len(blocks)} blocks")
                 return True
-            logger.error(f"[Craft] 保存失败: 响应不是有效 JSON")
+            logger.error(f"[Craft] 保存失败: 响应不是有效 JSON, status={response.status_code}")
             return False
 
     except Exception as e:
