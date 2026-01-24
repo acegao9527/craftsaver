@@ -143,7 +143,6 @@ class WebClipper:
             return []
 
         blocks = []
-        last_was_empty = False
 
         for elem in elements:
             if not hasattr(elem, 'name'):
@@ -160,7 +159,6 @@ class WebClipper:
                         "type": "text",
                         "markdown": prefix + text
                     })
-                    last_was_empty = False
 
             elif tag_name == 'p':
                 text = elem.get_text(strip=True)
@@ -169,13 +167,6 @@ class WebClipper:
                         "type": "text",
                         "markdown": text
                     })
-                    last_was_empty = False
-                elif not last_was_empty:
-                    blocks.append({
-                        "type": "text",
-                        "markdown": ""
-                    })
-                    last_was_empty = True
 
             elif tag_name == 'ul':
                 for li in elem.find_all('li', recursive=False):
@@ -185,7 +176,6 @@ class WebClipper:
                             "type": "text",
                             "markdown": "- " + text
                         })
-                        last_was_empty = False
 
             elif tag_name == 'ol':
                 for i, li in enumerate(elem.find_all('li', recursive=False), 1):
@@ -195,7 +185,6 @@ class WebClipper:
                             "type": "text",
                             "markdown": f"{i}. " + text
                         })
-                        last_was_empty = False
 
             elif tag_name == 'blockquote':
                 text = elem.get_text(strip=True)
@@ -207,7 +196,6 @@ class WebClipper:
                                 "type": "text",
                                 "markdown": "> " + line.strip()
                             })
-                    last_was_empty = False
 
             elif tag_name == 'pre':
                 code_text = elem.get_text('\n')
@@ -216,11 +204,6 @@ class WebClipper:
                         "type": "text",
                         "markdown": f"```\n{code_text}\n```"
                     })
-                    last_was_empty = False
-
-        # 清理末尾空行
-        while blocks and blocks[-1].get("markdown") == "" and len(blocks) > 1:
-            blocks.pop()
 
         return blocks
 
