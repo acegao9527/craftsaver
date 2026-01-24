@@ -6,3 +6,4 @@ pycryptodome
 lxml
 httpx
 python-dotenv
+scalar-fastapi

@@ -69,7 +69,7 @@ DEFAULT_CRAFT_DOCUMENT_ID=
 DEFAULT_CRAFT_TOKEN=
 
 # SQLite 数据库
-SQLITE_DB_PATH=data/savehelper.db
+SQLITE_DB_PATH=data/craftsaver.db
 
 # 应用端口
 APP_PORT=8001
@@ -129,7 +129,7 @@ docker logs craftsaver_app
 | `CRAFT_API_TOKEN` | Craft API Token | 是 | - |
 | `CRAFT_LINKS_ID` | Craft 文档 ID | 是 | - |
 | `APP_PORT` | 应用端口 | 否 | 8001 |
-| `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 | data/savehelper.db |
+| `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 | data/craftsaver.db |
 
 ## 许可证
 

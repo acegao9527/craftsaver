@@ -24,7 +24,7 @@ class BindingCreate(BaseModel):
     wecom_openid: str
     craft_link_id: str
     craft_document_id: str
-    craft_token: str
+    craft_token: Optional[str] = None
     display_name: Optional[str] = None
 
 

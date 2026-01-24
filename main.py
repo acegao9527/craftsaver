@@ -1,5 +1,5 @@
 """
-SaveHelper - 企业微信到 Craft 消息同步工具
+craftSaver - 企业微信到 Craft 消息同步工具
 
 主入口：仅处理企微消息转存到 Craft
 """
@@ -15,7 +15,7 @@ load_dotenv()
 
 # 配置日志
 setup_logging()
-startup_logger = logging.getLogger("savehelper.startup")
+startup_logger = logging.getLogger("craftsaver.startup")
 
 # WeCom 配置
 WECOM_TOKEN = os.getenv("WECOM_TOKEN")
@@ -38,7 +38,7 @@ except Exception as e:
 
 # 2. 初始化数据库
 from src.services.database import init_db
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/savehelper.db")
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/craftsaver.db")
 init_db(db_path=SQLITE_DB_PATH)
 startup_logger.info(f"Database config initialized (Path: {SQLITE_DB_PATH})")
 
@@ -48,6 +48,7 @@ CRAFT_LINKS_ID = os.getenv("CRAFT_LINKS_ID")
 
 # 应用配置
 APP_PORT = int(os.getenv("APP_PORT", "8002"))
+APP_TITLE = "craftSaver - WeCom to Craft Connector"
 
 # 3. 初始化 Craft
 from src.services.craft import init_craft
@@ -103,6 +104,10 @@ async def startup_event():
     # 启动 WeCom 轮询
     asyncio.create_task(run_wecom_polling())
 
+    # 打印访问地址
+    startup_logger.info(f"API 文档: http://localhost:{APP_PORT}/scalar")
+    startup_logger.info(f"OpenAPI JSON: http://localhost:{APP_PORT}/openapi.json")
+
 
 async def shutdown_event():
     """关闭时清理资源"""
@@ -110,15 +115,26 @@ async def shutdown_event():
 
 
 # 6. 创建 FastAPI 应用
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from scalar_fastapi import get_scalar_api_reference
 
 app = FastAPI(
-    title="SaveHelper - WeCom to Craft Connector",
+    title="craftSaver - WeCom to Craft Connector",
     description="企业微信消息存档同步到 Craft 文档",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
 )
+
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_docs(request: Request):
+    return get_scalar_api_reference(
+        openapi_url=str(request.url_for("openapi")),
+        title=APP_TITLE,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -129,16 +145,17 @@ app.add_middleware(
 )
 
 # 7. 注册路由
-from src.api.routers import wecom_router, craft_router
+from src.api.routers import wecom_router, craft_router, binding_router
 
 app.include_router(wecom_router)
 app.include_router(craft_router)
+app.include_router(binding_router)
 
 
 @app.get("/")
 async def root():
     """根路径"""
-    return {"message": "craftsaver is running", "version": "1.0.0"}
+    return {"message": "craftSaver is running", "version": "1.0.0"}
 
 
 if __name__ == "__main__":

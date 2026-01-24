@@ -15,7 +15,7 @@ from src.models.chat_record import UnifiedMessage
 logger = logging.getLogger(__name__)
 
 # 数据库文件路径
-_db_path = "data/savehelper.db"
+_db_path = "data/craftsaver.db"
 
 
 def init_db(db_path: str = None, **kwargs) -> None:

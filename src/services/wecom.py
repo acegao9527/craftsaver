@@ -621,11 +621,16 @@ async def run_wecom_polling():
             if messages:
                 logger_polling.info(f"[WeCom Polling] 拉取到 {len(messages)} 条消息")
                 for msg_data in messages:
+                    msg_type = msg_data.get("msgtype", "unknown")
+                    from_user = msg_data.get("from", "unknown")
+                    content_preview = msg_data.get("text", {}).get("content", "")[:100] if msg_data.get("text") else ""
+                    logger_polling.info(f"[WeCom] 消息: from={from_user}, type={msg_type}, content={content_preview}")
+
                     unified_msg = parse_wecom_message(msg_data)
                     if unified_msg:
                         asyncio.create_task(process_message(unified_msg))
                     else:
-                        logger_polling.warning(f"[WeCom Polling] 解析失败，跳过: {msg_data.get('msgid')}")
+                        logger_polling.warning(f"[WeCom Polling] 解析失败: {msg_data.get('msgid')}")
             else:
                 await asyncio.sleep(1)
 
