@@ -3,11 +3,11 @@
 
 将企微消息格式化为 Craft blocks
 """
-import os
 import logging
 from typing import List, Dict, Any, Optional
 
 from src.models.chat_record import UnifiedMessage
+from src.services.clipper import clip_url_to_page_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -167,10 +167,9 @@ class MessageFormatter:
             final_url = msg.content.strip()
 
             if final_url and final_url.startswith("http"):
-                blocks.append({
-                    "type": "richUrl",
-                    "url": final_url
-                })
+                # 使用网页剪藏服务，将链接转换为 Page Block
+                page_blocks = clip_url_to_page_blocks(final_url)
+                blocks.extend(page_blocks)
             else:
                 blocks.append({
                     "type": "text",
