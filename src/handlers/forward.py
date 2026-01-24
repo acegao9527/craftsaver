@@ -4,7 +4,7 @@
 import logging
 from src.models.chat_record import UnifiedMessage
 from src.handlers.base import BaseHandler
-from src.services.binding_service import BindingService
+from src.services.binding_service import BindingService, BindingCreate
 from src.services.formatter import format_unified_message_as_craft_blocks
 from src.services.craft import save_blocks_to_craft
 
@@ -29,6 +29,30 @@ class ForwardHandler(BaseHandler):
     async def handle(self, msg: UnifiedMessage):
         """处理消息转发"""
         from_user = msg.from_user
+        content = msg.content or ""
+
+        # 检查是否是绑定命令：绑定 tokenId linkId docId
+        if content.startswith("绑定"):
+            parts = content.split()
+            if len(parts) >= 4 and parts[0] == "绑定":
+                token_id = parts[1]
+                link_id = parts[2]
+                doc_id = parts[3]
+
+                # 创建绑定
+                create = BindingCreate(
+                    wecom_openid=from_user,
+                    craft_link_id=link_id,
+                    craft_document_id=doc_id,
+                    craft_token=token_id,
+                    display_name=None
+                )
+                binding = BindingService.create_binding(create)
+                if binding:
+                    logger.info(f"[Forward] 用户 {from_user} 绑定成功: link={link_id}, doc={doc_id}")
+                else:
+                    logger.error(f"[Forward] 用户 {from_user} 绑定失败")
+                return
 
         # 查询用户绑定配置
         binding = BindingService.get_binding_by_openid(from_user)
