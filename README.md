@@ -9,6 +9,7 @@ CraftSaver 是一个将企业微信消息同步到 Craft 文档的工具，支�
 - **企业微信消息同步**：使用官方 SDK 拉取消息存档，支持文本、图片、链接、视频、文件等消息类型
 - **统一消息存储**：将消息统一存储到 SQLite 数据库
 - **Craft 集成**：将消息智能转换为 Craft 原生块保存到文档
+- **用户绑定**：每个用户可绑定自己的 Craft 文档
 
 ## 技术栈
 
@@ -59,15 +60,6 @@ WECOM_PRIVATE_KEY_PATH=private_key.pem
 # 可选：过滤机器人自己发的消息
 WECOM_BOT_USERID=your_bot_userid
 
-# Craft 配置
-CRAFT_API_TOKEN=your_craft_api_token
-CRAFT_LINKS_ID=your_craft_links_id
-
-# 可选：默认转发目标
-DEFAULT_CRAFT_LINK_ID=
-DEFAULT_CRAFT_DOCUMENT_ID=
-DEFAULT_CRAFT_TOKEN=
-
 # SQLite 数据库
 SQLITE_DB_PATH=data/craftsaver.db
 
@@ -88,21 +80,44 @@ LOG_LEVEL=INFO
 docker logs -f craftsaver_app
 ```
 
-### 3. 本地开发
+### 3. 创建用户绑定
+
+部署完成后，通过 API 创建用户绑定：
 
 ```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 启动服务
-python main.py
+# 创建绑定（每个企微用户需要绑定自己的 Craft 文档）
+curl -X POST http://localhost:8001/bindings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wecom_openid": "用户OpenID",
+    "craft_link_id": "Craft链接ID",
+    "craft_document_id": "Craft文档ID",
+    "craft_token": "pdk_xxx",
+    "display_name": "显示名称"
+  }'
 ```
 
 ## API 端点
 
-- `GET /` - 健康检查
-- `POST /craft/save` - 保存消息到 Craft
-- `GET /craft/links` - 获取 Craft 链接列表
+### 健康检查
+- `GET /` - 服务状态
+
+### 绑定管理
+- `GET /bindings` - 获取所有绑定
+- `GET /bindings/{openid}` - 获取单个绑定
+- `POST /bindings` - 创建/更新绑定
+- `PUT /bindings/{openid}` - 更新绑定
+- `DELETE /bindings/{openid}` - 删除绑定
+- `POST /bindings/verify` - 验证 Craft 访问权限
+
+### Craft（已移除全局配置）
+
+## 消息转发流程
+
+1. 企微消息到达
+2. 根据 `from_user` 查询绑定
+3. 找到绑定 → 发送到对应的 Craft 文档
+4. 未找到绑定 → 打印日志并丢弃消息
 
 ## 验证与测试
 
@@ -116,6 +131,9 @@ curl http://localhost:8001/
 
 # 检查日志
 docker logs craftsaver_app
+
+# 查看 API 文档
+# 访问 http://localhost:8001/scalar
 ```
 
 ## 环境变量说明
@@ -126,10 +144,14 @@ docker logs craftsaver_app
 | `WECOM_APP_SECRET` | 消息存档 Secret | 是 | - |
 | `WECOM_TOKEN` | 回调 Token | 是 | - |
 | `WECOM_ENCODING_AES_KEY` | 回调 AES Key | 是 | - |
-| `CRAFT_API_TOKEN` | Craft API Token | 是 | - |
-| `CRAFT_LINKS_ID` | Craft 文档 ID | 是 | - |
+| `WECOM_BOT_USERID` | 机器人UserID（可选） | 否 | - |
 | `APP_PORT` | 应用端口 | 否 | 8001 |
 | `SQLITE_DB_PATH` | SQLite 数据库文件路径 | 否 | data/craftsaver.db |
+
+**注意**：
+- `CRAFT_API_TOKEN`、`CRAFT_LINKS_ID` 不再使用全局配置
+- 每个用户的 Craft 配置通过绑定 API 存储在数据库中
+- 未绑定的用户消息会被丢弃
 
 ## 许可证
 

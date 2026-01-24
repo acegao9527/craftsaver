@@ -42,21 +42,9 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/craftsaver.db")
 init_db(db_path=SQLITE_DB_PATH)
 startup_logger.info(f"Database config initialized (Path: {SQLITE_DB_PATH})")
 
-# Craft 配置
-CRAFT_API_TOKEN = os.getenv("CRAFT_API_TOKEN")
-CRAFT_LINKS_ID = os.getenv("CRAFT_LINKS_ID")
-
 # 应用配置
 APP_PORT = int(os.getenv("APP_PORT", "8002"))
 APP_TITLE = "craftSaver - WeCom to Craft Connector"
-
-# 3. 初始化 Craft
-from src.services.craft import init_craft
-init_craft(
-    api_token=CRAFT_API_TOKEN,
-    links_id=CRAFT_LINKS_ID
-)
-startup_logger.info("Craft Service initialized.")
 
 # 4. 导入服务
 import asyncio

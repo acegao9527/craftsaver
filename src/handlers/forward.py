@@ -34,21 +34,13 @@ class ForwardHandler(BaseHandler):
         binding = BindingService.get_binding_by_openid(from_user)
 
         if not binding:
-            # 尝试使用默认用户
-            default_target = BindingService.get_default_target()
-            if not default_target:
-                logger.warning(f"[Forward] 用户 {from_user} 未绑定，且未配置默认用户，跳过转发")
-                return
+            logger.warning(f"[Forward] 用户 {from_user} 未绑定，跳过转发")
+            return
 
-            link_id = default_target["link_id"]
-            document_id = default_target["document_id"]
-            token = default_target.get("token")
-            logger.info(f"[Forward] 用户 {from_user} 未绑定，使用默认文档")
-        else:
-            link_id = binding.craft_link_id
-            document_id = binding.craft_document_id
-            token = binding.craft_token
-            logger.info(f"[Forward] 用户 {from_user} -> link={link_id}, doc={document_id}")
+        link_id = binding.craft_link_id
+        document_id = binding.craft_document_id
+        token = binding.craft_token
+        logger.info(f"[Forward] 用户 {from_user} -> link={link_id}, doc={document_id}")
 
         # 格式化为 Craft blocks
         blocks = format_unified_message_as_craft_blocks(msg)

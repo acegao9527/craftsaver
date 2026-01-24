@@ -4,7 +4,6 @@
 """
 import json
 import logging
-import os
 from typing import Optional, List
 from datetime import datetime
 
@@ -16,13 +15,7 @@ from src.services.database import get_connection
 logger = logging.getLogger(__name__)
 
 # Craft 配置
-CRAFT_API_TOKEN = os.getenv("CRAFT_API_TOKEN")
-CRAFT_LINKS_ID = os.getenv("CRAFT_LINKS_ID")
 API_BASE_URL = "https://connect.craft.do/links"
-
-# 默认用户配置
-DEFAULT_CRAFT_LINK_ID = os.getenv("DEFAULT_CRAFT_LINK_ID", "")
-DEFAULT_CRAFT_DOCUMENT_ID = os.getenv("DEFAULT_CRAFT_DOCUMENT_ID", "")
 
 
 class BindingService:
@@ -123,17 +116,6 @@ class BindingService:
             return False
 
     @staticmethod
-    def get_default_target() -> Optional[dict]:
-        """获取默认用户的目标配置"""
-        if DEFAULT_CRAFT_LINK_ID and DEFAULT_CRAFT_DOCUMENT_ID and DEFAULT_CRAFT_TOKEN:
-            return {
-                "link_id": DEFAULT_CRAFT_LINK_ID,
-                "document_id": DEFAULT_CRAFT_DOCUMENT_ID,
-                "token": DEFAULT_CRAFT_TOKEN
-            }
-        return None
-
-    @staticmethod
     def _row_to_binding(row) -> UserBinding:
         """将数据库行转换为UserBinding对象"""
         return UserBinding(
@@ -156,18 +138,17 @@ def verify_craft_access(link_id: str, document_id: str, token: str = None) -> tu
     Args:
         link_id: Craft 链接 ID
         document_id: Craft 文档 ID
-        token: 文档 Token（可选）
+        token: 文档 Token（必填）
 
     Returns:
         (是否成功, 错误信息/显示名称)
     """
-    effective_token = token or CRAFT_API_TOKEN
-    if not effective_token:
-        return False, "未配置 CRAFT_API_TOKEN"
+    if not token:
+        return False, "未提供 token"
 
     url = f"{API_BASE_URL}/{link_id}/api/v1/blocks"
     headers = {
-        "Authorization": f"Bearer {effective_token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
     params = {
