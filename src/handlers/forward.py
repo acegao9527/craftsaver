@@ -31,13 +31,15 @@ class ForwardHandler(BaseHandler):
         from_user = msg.from_user
         content = msg.content or ""
 
-        # 检查是否是绑定命令：绑定 tokenId linkId docId
+        # 检查是否是绑定命令：绑定 tokenId linkId docId 用户名
         if content.startswith("绑定"):
             parts = content.split()
             if len(parts) >= 4 and parts[0] == "绑定":
                 token_id = parts[1]
                 link_id = parts[2]
                 doc_id = parts[3]
+                # 用户名取第4个及之后的参数拼接
+                display_name = parts[4] if len(parts) > 4 else None
 
                 # 创建绑定
                 create = BindingCreate(
@@ -45,11 +47,11 @@ class ForwardHandler(BaseHandler):
                     craft_link_id=link_id,
                     craft_document_id=doc_id,
                     craft_token=token_id,
-                    display_name=None
+                    display_name=display_name
                 )
                 binding = BindingService.create_binding(create)
                 if binding:
-                    logger.info(f"[Forward] 用户 {from_user} 绑定成功: link={link_id}, doc={doc_id}")
+                    logger.info(f"[Forward] 用户 {from_user} 绑定成功: link={link_id}, doc={doc_id}, name={display_name}")
                 else:
                     logger.error(f"[Forward] 用户 {from_user} 绑定失败")
                 return
