@@ -46,8 +46,8 @@ class WebClipper:
         try:
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
-            # 检测编码
-            response.encoding = response.apparent_encoding or 'utf-8'
+            # 不手动设置编码，让 requests 自动处理
+            # 如果需要指定编码，从响应头或 meta 标签中读取
             return response.text
         except requests.exceptions.Timeout:
             logger.warning(f"[Clipper] 请求超时: {url}")
@@ -61,7 +61,7 @@ class WebClipper:
 
     def extract_content(self, html: str, url: str) -> Optional[Dict]:
         """
-        使用 readability 提取正文内容
+        从 HTML 提取正文内容，优先使用直接提取避免编码问题
 
         Args:
             html: 网页 HTML
@@ -71,42 +71,84 @@ class WebClipper:
             提取结果 dict，失败返回 None
         """
         try:
-            doc = Document(html, url)
-            # 使用 getattr 兼容不同版本的 readability
-            byline = getattr(doc, 'byline', lambda: "")() or ""
+            # 使用 html.parser 解析器，避免 lxml 的编码问题
+            soup = BeautifulSoup(html, "html.parser")
+
+            # 提取标题
+            title = (soup.find('title') and soup.find('title').get_text(strip=True)) or ""
+
+            # 直接从原始 HTML 提取内容元素列表，避免编码问题
+            content_elements = self._extract_content_elements(soup, url)
+
             return {
-                "title": doc.title() or "",
-                "short_title": doc.short_title() or "",
-                "content_html": doc.summary(),
-                "byline": byline,
+                "title": title,
+                "short_title": title[:50] if title else "",
+                "content_elements": content_elements,
+                "byline": "",
             }
         except Exception as e:
             logger.warning(f"[Clipper] 内容提取失败: {e}")
             return None
 
-    def html_to_blocks(self, content_html: str, base_url: str) -> List[Dict]:
+    def _extract_content_elements(self, soup: BeautifulSoup, url: str) -> List[BeautifulSoup]:
         """
-        将 HTML 内容转换为 Craft blocks
+        直接从原始 HTML 提取文章内容元素
 
         Args:
-            content_html: 正文的 HTML
+            soup: BeautifulSoup 对象
+            url: 原始 URL
+
+        Returns:
+            BeautifulSoup 元素列表
+        """
+        # 优先查找微信公众号文章内容区域
+        article = (soup.find('div', id='js_content') or  # 微信公众号
+                   soup.find('article') or
+                   soup.find('div', class_=lambda x: x and 'article' in str(x).lower()) or
+                   soup.find('div', id=lambda x: x and 'article' in str(x).lower()) or
+                   soup.find('main') or
+                   soup.find('div', role='main') or
+                   soup.find('div', class_=lambda x: x and 'content' in str(x).lower()))
+
+        elements = []
+        if article:
+            # 提取各级标题和段落
+            for elem in article.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                                          'p', 'pre', 'blockquote', 'ul', 'ol']):
+                text = elem.get_text(strip=True)
+                if text and len(text) >= 5:
+                    elements.append(elem)
+
+        # 兜底：尝试提取所有段落
+        if not elements:
+            for p in soup.find_all('p'):
+                text = p.get_text(strip=True)
+                if text and len(text) > 10:
+                    elements.append(p)
+
+        return elements
+
+    def elements_to_blocks(self, elements: List, base_url: str) -> List[Dict]:
+        """
+        将 HTML 元素列表转换为 Craft blocks
+
+        Args:
+            elements: BeautifulSoup 元素列表
             base_url: 基础 URL（用于处理相对路径）
 
         Returns:
             Craft blocks 列表
         """
-        if not content_html:
+        if not elements:
             return []
 
-        soup = BeautifulSoup(content_html, "lxml")
         blocks = []
-
-        # 用于跟踪上一个 block，避免空行
         last_was_empty = False
 
-        # 遍历所有元素，按顺序处理
-        for elem in soup.find_all(recursive=True):
-            # 只处理特定标签
+        for elem in elements:
+            if not hasattr(elem, 'name'):
+                continue
+
             tag_name = elem.name
 
             if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
@@ -129,29 +171,35 @@ class WebClipper:
                     })
                     last_was_empty = False
                 elif not last_was_empty:
-                    # 空段落作为分隔
                     blocks.append({
                         "type": "text",
                         "markdown": ""
                     })
                     last_was_empty = True
 
-            elif tag_name in ['ul', 'ol']:
-                # 列表处理
+            elif tag_name == 'ul':
                 for li in elem.find_all('li', recursive=False):
                     text = li.get_text(strip=True)
                     if text:
-                        prefix = "- " if tag_name == 'ul' else "1. "
                         blocks.append({
                             "type": "text",
-                            "markdown": prefix + text
+                            "markdown": "- " + text
+                        })
+                        last_was_empty = False
+
+            elif tag_name == 'ol':
+                for i, li in enumerate(elem.find_all('li', recursive=False), 1):
+                    text = li.get_text(strip=True)
+                    if text:
+                        blocks.append({
+                            "type": "text",
+                            "markdown": f"{i}. " + text
                         })
                         last_was_empty = False
 
             elif tag_name == 'blockquote':
                 text = elem.get_text(strip=True)
                 if text:
-                    # 用 > 引用格式
                     lines = text.split('\n')
                     for line in lines:
                         if line.strip():
@@ -161,30 +209,7 @@ class WebClipper:
                             })
                     last_was_empty = False
 
-            elif tag_name == 'a':
-                # 链接处理
-                text = elem.get_text(strip=True)
-                href = elem.get('href')
-                if text and href:
-                    full_url = urljoin(base_url, href)
-                    blocks.append({
-                        "type": "text",
-                        "markdown": f"[{text}]({full_url})"
-                    })
-                    last_was_empty = False
-
-            elif tag_name == 'code':
-                # 行内代码
-                text = elem.get_text(strip=True)
-                if text and elem.parent and elem.parent.name != 'pre':
-                    blocks.append({
-                        "type": "text",
-                        "markdown": f"`{text}`"
-                    })
-                    last_was_empty = False
-
             elif tag_name == 'pre':
-                # 代码块
                 code_text = elem.get_text('\n')
                 if code_text.strip():
                     blocks.append({
@@ -192,26 +217,6 @@ class WebClipper:
                         "markdown": f"```\n{code_text}\n```"
                     })
                     last_was_empty = False
-
-            elif tag_name == 'img':
-                src = elem.get('src') or elem.get('data-src') or elem.get('data-original')
-                if src:
-                    full_url = urljoin(base_url, src)
-                    blocks.append({
-                        "type": "image",
-                        "url": full_url,
-                        "markdown": f"![Image]({full_url})"
-                    })
-                    last_was_empty = False
-
-            elif tag_name in ['br', 'hr']:
-                # 换行或分隔线
-                if not last_was_empty:
-                    blocks.append({
-                        "type": "text",
-                        "markdown": ""
-                    })
-                    last_was_empty = True
 
         # 清理末尾空行
         while blocks and blocks[-1].get("markdown") == "" and len(blocks) > 1:
@@ -238,29 +243,43 @@ class WebClipper:
             logger.info(f"[Clipper] 获取页面失败，返回链接 block: {url}")
             return self._create_fallback_block(fallback_url or url)
 
-        # 步骤2：提取正文
+        # 步骤2：提取正文元素
         content = self.extract_content(html, url)
-        if not content or not content.get("content_html"):
+        elements = content.get("content_elements", []) if content else []
+        if not elements:
             logger.info(f"[Clipper] 提取正文失败，返回链接 block: {url}")
             return self._create_fallback_block(fallback_url or url)
 
         # 检查内容是否为空（只有很少的内容）
-        soup = BeautifulSoup(content["content_html"], "lxml")
-        text_content = soup.get_text(strip=True)
+        text_content = "".join([e.get_text(strip=True) for e in elements])
         if len(text_content) < 50:
             logger.info(f"[Clipper] 正文内容过短（{len(text_content)} 字符），返回链接 block: {url}")
             return self._create_fallback_block(fallback_url or url)
 
-        # 步骤3：转换为 blocks
-        blocks = self.html_to_blocks(content["content_html"], url)
+        # 步骤3：将元素转换为 blocks
+        blocks = self.elements_to_blocks(elements, url)
 
         if not blocks:
             logger.info(f"[Clipper] 未提取到有效内容，返回链接 block: {url}")
             return self._create_fallback_block(fallback_url or url)
 
+        # 步骤4：从原始 HTML 补充图片（针对微信公众号等平台的特殊处理）
+        original_soup = BeautifulSoup(html, "html.parser")
+        extra_images = self._extract_images_from_html(original_soup, url)
+
+        # 将额外图片插入到 blocks 中（放在第一个位置之后）
+        if extra_images:
+            insert_idx = 1
+            for i, b in enumerate(blocks):
+                if b.get("type") == "text" and b.get("markdown"):
+                    insert_idx = i + 1
+                    break
+            blocks[insert_idx:insert_idx] = extra_images
+            logger.info(f"[Clipper] 补充了 {len(extra_images)} 张图片")
+
         logger.info(f"[Clipper] 成功提取: {content['title']}, {len(blocks)} blocks")
 
-        # 步骤4：构建 Page Block
+        # 步骤5：构建 Page Block
         page_block = {
             "type": "page",
             "textStyle": "page",
@@ -269,6 +288,51 @@ class WebClipper:
         }
 
         return [page_block]
+
+    def _extract_images_from_html(self, soup: BeautifulSoup, base_url: str) -> List[Dict]:
+        """
+        从原始 HTML 中提取图片
+
+        针对微信公众号等平台，图片可能在 data-img、data-src 等属性中
+
+        Args:
+            soup: BeautifulSoup 对象
+            base_url: 基础 URL
+
+        Returns:
+            图片 blocks 列表
+        """
+        image_blocks = []
+        seen_urls = set()
+
+        # 方法1: 查找 data-img 属性（微信公众号常用）
+        for tag in soup.find_all(attrs={'data-img': True}):
+            img_url = tag.get('data-img')
+            if img_url and img_url not in seen_urls:
+                full_url = urljoin(base_url, img_url)
+                if full_url.startswith('http'):
+                    image_blocks.append({
+                        "type": "image",
+                        "url": full_url,
+                        "markdown": f"![Image]({full_url})"
+                    })
+                    seen_urls.add(img_url)
+
+        # 方法2: 查找普通 img 标签
+        for img in soup.find_all('img'):
+            src = (img.get('src') or img.get('data-src') or img.get('data-original')
+                   or img.get('data-watermark-src'))
+            if src and src not in seen_urls:
+                full_url = urljoin(base_url, src)
+                if full_url.startswith('http') and not full_url.startswith('data:'):
+                    image_blocks.append({
+                        "type": "image",
+                        "url": full_url,
+                        "markdown": f"![Image]({full_url})"
+                    })
+                    seen_urls.add(src)
+
+        return image_blocks
 
     def _create_fallback_block(self, url: str) -> List[Dict]:
         """
